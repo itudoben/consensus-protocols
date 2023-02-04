@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+[[ "$DEBUG" ]] && set -x
+
+declare -r go_lang_image='golang@sha256:ebceb16dc094769b6e2a393d51e0417c19084ba20eb8967fb3f7675c32b45774'
+
+build() {
+    docker buildx build . --tag itudoben/go:1.0 \
+		--output bin/ \
+		--platform local
+}
+
+dev() {
+    docker run --rm -it \
+		--name go_hello_dev \
+		--volume $(pwd):/usr/share/local/projects \
+		--workdir /usr/share/local/projects \
+		$go_lang_image
+}
+
+run() {
+    docker run --rm \
+		--name go_hello_run \
+		--volume $(pwd):/usr/share/local/projects \
+		--workdir /usr/share/local/projects \
+		itudoben/go:1.0
+}
+
+main() {
+if [[ "$1" == 'build' ]]; then
+    build
+elif [[ "$1" == 'dev' ]]; then
+    dev
+elif [[ "$1" == 'run' ]]; then
+    run
+fi
+}
+
+main "$@"
