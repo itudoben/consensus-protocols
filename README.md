@@ -10,10 +10,13 @@ All the work is done through a development container.
 The container is started as follows:
 
 ```bash
-./dev-container run
+./devcontainer run
 ```
 
 The source code can be executed as follows:
 ```bash
-./dev-container build
+./devcontainer build
 ```
+
+# Issues on Fri, Feb 17, 2023
+using document raft-consensus-protocol-thesis.pdf stored on PC

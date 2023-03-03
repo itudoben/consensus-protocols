@@ -6,7 +6,7 @@ ARG TARGETOS TARGETARCH
 RUN --mount=target=. \
     --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
-    GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/hello .
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} cd main && go build -o /out/hello .
 
 FROM scratch AS bin
 COPY --from=build /out/hello /

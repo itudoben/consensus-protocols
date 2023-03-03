@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+
+set -eo pipefail
+
+[[ "$DEBUG" ]] && set -x
+
+#declare -r go_lang_image='golang@sha256:ebceb16dc094769b6e2a393d51e0417c19084ba20eb8967fb3f7675c32b45774'
+declare -r go_lang_image='hello-commit:latest'
+declare -r container_name='go_hello_dev'
+
+usage() {
+  cat <<EOT
+Usage: ($(basename $0)) <command>
+  command may be      build | build_bin | dev | run
+
+For detailed information on this command and its flags, run:
+  $(basename $0) --help
+EOT
+}
+
+help(){
+  cat <<EOT
+NAME
+  $(basename $0) - manage developer container
+
+SYNOPSIS
+  $(basename $0) COMMAND
+
+DESCRIPTION
+  The $(basename $0) creates, runs and spawns developer container.
+
+COMMANDS
+  COMMAND is one of the following:
+
+    build
+      Build the developer container image using installed Docker Engine.
+
+    build_bin
+      Build the binary for the Go application in the ./bin directory.
+
+    dev
+      Run the developer container with the source code mounted and a bash ready to execute Shell commands.
+
+    run
+      Run the Go application using a container to build it.
+
+FLAGS
+    --help
+      Display detailed help.
+
+EXAMPLES
+  $(basename $0) build
+
+EOT
+}
+
+buildbin() {
+    echo "Generate a binary executable in the bin/ directory for the local platform."
+    docker buildx build . --tag itudoben/go:1.0 \
+		--output bin/ \
+		--platform local
+}
+
+build() {
+    echo "Generate a binary executable in the bin/ directory."
+    docker buildx build . --tag itudoben/go:1.0
+}
+
+commit() {
+    echo "Generate a snapshot of the running '$container_name' dev container."
+    docker commit ${container_name} "${container_name}:snapshot"
+}
+
+devsnapshot() {
+    echo "Run the snapshot dev container with the source code to test it."
+    docker run --rm -it \
+		--name ${container_name} \
+		--volume $(pwd):/usr/share/local/projects \
+		--workdir /usr/share/local/projects \
+		"${container_name}:snapshot"
+}
+
+dev() {
+    echo "Run the Go container with the source code to test it."
+    docker run --rm -it \
+		--name ${container_name} \
+		--volume $(pwd):/usr/share/local/projects \
+		--workdir /usr/share/local/projects \
+		$go_lang_image
+}
+
+run() {
+    echo "Run the Go code using the docker image."
+    docker run --rm \
+		--name go_hello_run \
+		--volume $(pwd):/usr/share/local/projects \
+		--workdir /usr/share/local/projects \
+		itudoben/go:1.0
+}
+
+error()("$@" &> >(while read line; do echo -e "\e[01;31m$line\e[0m" >&2; done))
+
+main() {
+  local -r command=$1
+
+  if [[ $(type -t $command) == 'function' ]]; then
+    eval $1
+  elif [[ "$1" == '--help' ]]; then
+    help
+  else
+    cmd="echo ERROR: ($(basename $0)) invalid choice: '$1'."
+    error $cmd
+    usage
+    exit 1
+  fi
+}
+
+main "$@"
