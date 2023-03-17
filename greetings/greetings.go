@@ -13,6 +13,6 @@ func Hello(name string) (string, error) {
     }
 
 	// Return a greeting that embeds the name in a message.
-	message := fmt.Sprintf("Hi, %v. Welcome!", name)
+	message := fmt.Sprintf("Hi, %v. Welcome back!", name)
 	return message, nil
 }

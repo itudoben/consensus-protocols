@@ -1,0 +1,6 @@
+# 1.20.0-alpine3.17
+FROM golang:alpine3.17@sha256:405962195c7fd525604cb74ab86cb7c88fcfc30af0e31a5b3c0636a7c4e9e567
+
+RUN apk update && \
+    apk upgrade && \
+    apk --no-cache add curl

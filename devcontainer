@@ -4,9 +4,10 @@ set -eo pipefail
 
 [[ "$DEBUG" ]] && set -x
 
-#declare -r go_lang_image='golang@sha256:ebceb16dc094769b6e2a393d51e0417c19084ba20eb8967fb3f7675c32b45774'
-declare -r go_lang_image='hello-commit:latest'
-declare -r container_name='go_hello_dev'
+#declare -r image_go_lang='golang@sha256:ebceb16dc094769b6e2a393d51e0417c19084ba20eb8967fb3f7675c32b45774
+declare -r image_repo_tag_dev='itudoben/dev:1.0'
+declare -r image_repo_tag='itudoben/exe:1.0'
+declare container_name="go_dev_$(dd bs=4 count=1 if=/dev/urandom 2>/dev/null | xxd -p)"
 
 usage() {
   cat <<EOT
@@ -33,10 +34,10 @@ COMMANDS
   COMMAND is one of the following:
 
     build
-      Build the developer container image using installed Docker Engine.
-
-    build_bin
       Build the binary for the Go application in the ./bin directory.
+
+    builddev
+      Build the developer container image using installed Docker Engine.
 
     dev
       Run the developer container with the source code mounted and a bash ready to execute Shell commands.
@@ -54,16 +55,14 @@ EXAMPLES
 EOT
 }
 
-buildbin() {
-    echo "Generate a binary executable in the bin/ directory for the local platform."
-    docker buildx build . --tag itudoben/go:1.0 \
-		--output bin/ \
-		--platform local
+build() {
+    echo "Generate a Docker image."
+    docker buildx build . --tag ${image_repo_tag}
 }
 
-build() {
-    echo "Generate a binary executable in the bin/ directory."
-    docker buildx build . --tag itudoben/go:1.0
+builddev() {
+    echo "Generate a Docker image."
+    docker buildx build . --file Dockerfile-dev --tag ${image_repo_tag_dev}
 }
 
 commit() {
@@ -81,21 +80,21 @@ devsnapshot() {
 }
 
 dev() {
-    echo "Run the Go container with the source code to test it."
+    echo "Run the Go container with the source code to test it in container ${container_name}."
     docker run --rm -it \
 		--name ${container_name} \
 		--volume $(pwd):/usr/share/local/projects \
 		--workdir /usr/share/local/projects \
-		$go_lang_image
+		${image_repo_tag_dev}
 }
 
 run() {
-    echo "Run the Go code using the docker image."
+    echo "Run the Go code using the executable docker image."
     docker run --rm \
 		--name go_hello_run \
 		--volume $(pwd):/usr/share/local/projects \
 		--workdir /usr/share/local/projects \
-		itudoben/go:1.0
+		${image_repo_tag}
 }
 
 error()("$@" &> >(while read line; do echo -e "\e[01;31m$line\e[0m" >&2; done))

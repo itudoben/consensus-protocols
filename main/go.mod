@@ -1,4 +1,4 @@
-module io/itudoben/main
+module itudoben.io/main
 
 go 1.20
 
