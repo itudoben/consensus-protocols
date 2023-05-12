@@ -6,7 +6,7 @@ pkg.go.dev allows to find packages from other modules.
 
 # Dev Container
 
-All the work is done through a development container.
+All the work is done through a development container. Docker desktop or other docker engine must be running.
 The container is started as follows:
 
 ```bash

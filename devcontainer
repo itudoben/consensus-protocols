@@ -12,7 +12,7 @@ declare container_name="go_dev_$(dd bs=4 count=1 if=/dev/urandom 2>/dev/null | x
 usage() {
   cat <<EOT
 Usage: ($(basename $0)) <command>
-  command may be      build | build_bin | dev | run
+  command may be      build | builddev | dev | run
 
 For detailed information on this command and its flags, run:
   $(basename $0) --help
