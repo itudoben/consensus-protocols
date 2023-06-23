@@ -2,7 +2,7 @@
 
 A Go project to learn Go and consensus protocols.
 
-pkg.go.dev allows to find packages from other modules.
+https://pkg.go.dev allows to find packages from other modules.
 
 # Dev Container
 
@@ -22,7 +22,7 @@ The source code can be executed as follows:
 gofmt -w file_name
 https://www.tothenew.com/blog/gofmt-formatting-the-go-code/#:~:text=commands%20and%20options,to%20the%20source%20before%20reformatting.
 
-# Issues on Fri, Mar 17, 2023
+# Issues on Fri, June 23, 2023
 using document raft-consensus-protocol-thesis.pdf stored on PC
 
 From a third container to talk to 2 others node

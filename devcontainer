@@ -4,15 +4,15 @@ set -eo pipefail
 
 [[ "$DEBUG" ]] && set -x
 
-#declare -r image_go_lang='golang@sha256:ebceb16dc094769b6e2a393d51e0417c19084ba20eb8967fb3f7675c32b45774
-declare -r image_repo_tag_dev='itudoben/dev:1.0'
-declare -r image_repo_tag='itudoben/exe:1.0'
+#declare -r image_go_lang='golang:alpine3.18@sha256:9a15c133ba2cfafe79652f4815b62e7cfc267f68df1b9454c6ab2a3ca8b96a88'
+declare -r image_repo_tag_dev='itudoben/dev:1.1'
+declare -r image_repo_tag='itudoben/exe:1.1'
 declare container_name="go_dev_$(dd bs=4 count=1 if=/dev/urandom 2>/dev/null | xxd -p)"
 
 usage() {
   cat <<EOT
 Usage: ($(basename $0)) <command>
-  command may be      build | builddev | dev | run
+  command may be      build | builddev | dev | help | run
 
 For detailed information on this command and its flags, run:
   $(basename $0) --help
@@ -41,6 +41,9 @@ COMMANDS
 
     dev
       Run the developer container with the source code mounted and a bash ready to execute Shell commands.
+
+    help
+      Display this help.
 
     run
       Run the Go application using a container to build it.
