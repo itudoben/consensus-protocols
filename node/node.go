@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 )
 
 // Structure to implement interface http.ResponseWriter
@@ -27,13 +28,77 @@ var p = 8000
 var stat = new(state.State)
 
 func main() {
+	wg := &sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		httpServer()
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		listerBroadcast()
+		wg.Done()
+	}()
+
+	wg.Wait()
+}
+
+func httpServer() {
 	setState(stat, os.Stdout)
 
 	http.HandleFunc("/", defaultHandler) // each request calls handler
 	http.HandleFunc("/status", status)   // each request calls handler
 
-	log.Print()
+    fmt.Printf("%s waiting for broadcast commands ...\n", addrLoc)
+
 	log.Fatal(http.ListenAndServe(":"+fmt.Sprint(p), nil))
+}
+
+func listerBroadcast() {
+	thisIp, errs := GetLocalIP(os.Stdout)
+
+	pc, err := net.ListenPacket("udp4", ":8872")
+	if err != nil {
+		panic(err)
+	}
+	defer pc.Close()
+
+	buf := make([]byte, 1024)
+	addrLoc := thisIp
+loop:
+	for {
+		fmt.Printf("%s waiting for broadcast commands ...\n", addrLoc)
+		n, addr, err := pc.ReadFrom(buf)
+		if err != nil {
+			panic(err)
+			break
+		}
+
+		c := ""
+		var x uint8 = 0
+		// Clean up what was received to remove an added character at the end of the buffer
+		if buf[n] == x {
+			c = string(buf[:n-1])
+		} else {
+			c = string(buf[:n])
+		}
+
+		switch c {
+		case "q":
+			fmt.Printf("%s shutdown\n", addrLoc)
+			break loop
+		case "i":
+			if errs != nil {
+				panic(err)
+			}
+
+			fmt.Printf("%s received %q sent by %s\n", thisIp, c, addr.String())
+		default:
+			fmt.Printf("%s received unknown command %q sent by %s\n", addrLoc, c, addr.String())
+		}
+	}
 }
 
 // handler echoes the Path component of the request URL r.
@@ -42,24 +107,30 @@ func defaultHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func status(w http.ResponseWriter, req *http.Request) {
+	fmt.Fprintf(os.Stdout, "[STATUS] Node with IP %+v:%d\n", stat, p)
 	fmt.Fprintf(w, "[STATUS] Node with IP %+v:%d\n", stat, p)
 }
 
-func setState(stat *state.State, w io.Writer) {
-	// get list of available addresses
-	addr, err := net.InterfaceAddrs()
+func GetLocalIP(w io.Writer) (ip string, err error) {
+	// Get preferred outbound ip of this machine
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	defer conn.Close()
+
 	if err != nil {
-		fmt.Fprint(w, err)
-		return
+		log.Fatal(err)
+		return "", err
 	}
 
-	for _, addr := range addr {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			// check if IPv4 or IPv6 is not nil
-			if ipnet.IP.To4() != nil || ipnet.IP.To16 != nil {
-				stat.Ip = ipnet.IP.String()
-				stat.Role = "subsidiary"
-			}
-		}
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String(), nil
+}
+
+func setState(stat *state.State, w io.Writer) {
+	ip, err := GetLocalIP(w)
+	if err != nil {
+		panic(err)
 	}
+
+	stat.Ip = ip
+	stat.Role = "subsidiary"
 }
