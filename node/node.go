@@ -24,6 +24,7 @@ func (d Dummy) Write(bb []byte) (int, error) { return d.w.Write(bb) }
 func (d Dummy) WriteHeader(statusCode int)   {}
 
 var p = 8000
+var pUdp = 8972
 
 var stat = new(state.State)
 
@@ -32,48 +33,60 @@ func main() {
 
 	wg.Add(1)
 	go func() {
-		httpServer()
-		wg.Done()
+		err := httpServer()
+		defer wg.Done()
+		if err != nil {
+			panic(err)
+		}
 	}()
 
 	wg.Add(1)
 	go func() {
-		listerBroadcast()
-		wg.Done()
+		err := listerBroadcast()
+		defer wg.Done()
+		if err != nil {
+			panic(err)
+		}
 	}()
 
 	wg.Wait()
 }
 
-func httpServer() {
+func httpServer() (error){
 	setState(stat, os.Stdout)
 
 	http.HandleFunc("/", defaultHandler) // each request calls handler
 	http.HandleFunc("/status", status)   // each request calls handler
 
-    fmt.Printf("%s waiting for broadcast commands ...\n", addrLoc)
+	thisIp, err := GetLocalIP(os.Stdout)
+	if err != nil {
+		return err
+	}
 
-	log.Fatal(http.ListenAndServe(":"+fmt.Sprint(p), nil))
+	fmt.Printf("%s waiting for HTTP commands on port %d...\n", thisIp, p)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", p), nil))
+	return nil
 }
 
-func listerBroadcast() {
-	thisIp, errs := GetLocalIP(os.Stdout)
-
-	pc, err := net.ListenPacket("udp4", ":8872")
+func listerBroadcast() (error){
+	thisIp, err := GetLocalIP(os.Stdout)
 	if err != nil {
-		panic(err)
+		return err
 	}
+
+	pc, err := net.ListenPacket("udp4", fmt.Sprintf(":%d", pUdp))
 	defer pc.Close()
+	if err != nil {
+		return err
+	}
 
 	buf := make([]byte, 1024)
-	addrLoc := thisIp
 loop:
 	for {
-		fmt.Printf("%s waiting for broadcast commands ...\n", addrLoc)
+		fmt.Printf("%s waiting for broadcast commands on port %d...\n", thisIp, pUdp)
 		n, addr, err := pc.ReadFrom(buf)
 		if err != nil {
-			panic(err)
-			break
+			return err
 		}
 
 		c := ""
@@ -87,18 +100,19 @@ loop:
 
 		switch c {
 		case "q":
-			fmt.Printf("%s shutdown\n", addrLoc)
+			fmt.Printf("%s shutdown\n", thisIp)
 			break loop
 		case "i":
-			if errs != nil {
-				panic(err)
+			if err != nil {
+				return err
 			}
 
 			fmt.Printf("%s received %q sent by %s\n", thisIp, c, addr.String())
 		default:
-			fmt.Printf("%s received unknown command %q sent by %s\n", addrLoc, c, addr.String())
+			fmt.Printf("%s received unknown command %q sent by %s\n", thisIp, c, addr.String())
 		}
 	}
+	return nil
 }
 
 // handler echoes the Path component of the request URL r.
@@ -125,12 +139,13 @@ func GetLocalIP(w io.Writer) (ip string, err error) {
 	return localAddr.IP.String(), nil
 }
 
-func setState(stat *state.State, w io.Writer) {
+func setState(stat *state.State, w io.Writer) (error){
 	ip, err := GetLocalIP(w)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	stat.Ip = ip
 	stat.Role = "subsidiary"
+	return nil
 }
