@@ -28,31 +28,7 @@ var pUdp = 8972
 
 var stat = new(state.State)
 
-func main() {
-	wg := &sync.WaitGroup{}
-
-	wg.Add(1)
-	go func() {
-		err := httpServer()
-		defer wg.Done()
-		if err != nil {
-			panic(err)
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		err := listerBroadcast()
-		defer wg.Done()
-		if err != nil {
-			panic(err)
-		}
-	}()
-
-	wg.Wait()
-}
-
-func httpServer() (error){
+func httpServer() error {
 	setState(stat, os.Stdout)
 
 	http.HandleFunc("/", defaultHandler) // each request calls handler
@@ -68,7 +44,7 @@ func httpServer() (error){
 	return nil
 }
 
-func listerBroadcast() (error){
+func listerBroadcast() error {
 	thisIp, err := GetLocalIP(os.Stdout)
 	if err != nil {
 		return err
@@ -139,7 +115,7 @@ func GetLocalIP(w io.Writer) (ip string, err error) {
 	return localAddr.IP.String(), nil
 }
 
-func setState(stat *state.State, w io.Writer) (error){
+func setState(stat *state.State, w io.Writer) error {
 	ip, err := GetLocalIP(w)
 	if err != nil {
 		return err
@@ -148,4 +124,28 @@ func setState(stat *state.State, w io.Writer) (error){
 	stat.Ip = ip
 	stat.Role = "subsidiary"
 	return nil
+}
+
+func main() {
+	wg := &sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		err := httpServer()
+		defer wg.Done()
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		err := listerBroadcast()
+		defer wg.Done()
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	wg.Wait()
 }
