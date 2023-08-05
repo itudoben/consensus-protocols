@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	netaddr "gopkg.in/netaddr.v1"
 	"io"
 	"itudoben.io/state"
 	"log"
@@ -39,7 +40,7 @@ func httpServer() error {
 		return err
 	}
 
-	fmt.Printf("%s waiting for HTTP commands on port %d...\n", thisIp, p)
+	fmt.Printf("%s waiting for HTTP commands on port %d...\n", thisIp.String(), p)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", p), nil))
 	return nil
 }
@@ -59,7 +60,7 @@ func listerBroadcast() error {
 	buf := make([]byte, 1024)
 loop:
 	for {
-		fmt.Printf("%s waiting for broadcast commands on port %d...\n", thisIp, pUdp)
+		fmt.Printf("%s waiting for broadcast (ip = %s) commands on port %d...\n", netaddr.BroadcastAddr(net.Addr.Network()).String(), thisIp.String(), pUdp)
 		n, addr, err := pc.ReadFrom(buf)
 		if err != nil {
 			return err
@@ -101,18 +102,18 @@ func status(w http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(w, "[STATUS] Node with IP %+v:%d\n", stat, p)
 }
 
-func GetLocalIP(w io.Writer) (ip string, err error) {
+func GetLocalIP(w io.Writer) (ip *net.IP, err error) {
 	// Get preferred outbound ip of this machine
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	defer conn.Close()
 
 	if err != nil {
 		log.Fatal(err)
-		return "", err
+		return nil, err
 	}
 
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	return localAddr.IP.String(), nil
+	return &localAddr.IP, nil
 }
 
 func setState(stat *state.State, w io.Writer) error {
@@ -121,12 +122,31 @@ func setState(stat *state.State, w io.Writer) error {
 		return err
 	}
 
-	stat.Ip = ip
+	stat.Ip = *ip
 	stat.Role = "subsidiary"
 	return nil
 }
 
 func main() {
+	// First send a request to join a cluster ID
+	//     broadcastAddress, err := netaddr.Broadcast.String()
+	//
+	//     	conn, err := net.Dial("udp", broadcastAddress)
+	//     	if err != nil {
+	//     		fmt.Println("Error creating UDP connection:", err)
+	//     		return
+	//     	}
+	//     	defer conn.Close()
+	//
+	//     	message := []byte("This is a broadcast message!")
+	//     	_, err = conn.Write(message)
+	//     	if err != nil {
+	//     		fmt.Println("Error sending UDP broadcast:", err)
+	//     		return
+	//     	}
+	//
+	//     	fmt.Println("Broadcast message sent successfully.")
+
 	wg := &sync.WaitGroup{}
 
 	wg.Add(1)

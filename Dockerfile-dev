@@ -3,4 +3,5 @@ FROM golang:alpine3.18@sha256:8bdf832c26fff72bca1fa6683b1f01dd6462b2bd665aab683f
 
 RUN apk update && \
     apk upgrade && \
-    apk --no-cache add curl
+    apk --no-cache add curl && \
+    apk add git

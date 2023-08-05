@@ -5,8 +5,8 @@ set -eo pipefail
 [[ "$DEBUG" ]] && set -x
 
 #declare -r image_go_lang='golang:alpine3.18@sha256:9a15c133ba2cfafe79652f4815b62e7cfc267f68df1b9454c6ab2a3ca8b96a88'
-declare -r image_repo_tag_dev='itudoben/dev:1.1'
-declare -r image_repo_tag='itudoben/exe:1.1'
+declare -r image_repo_tag_dev='itudoben/dev:1.2'
+declare -r image_repo_tag='itudoben/exe:1.2'
 declare container_name="go_dev_$(dd bs=4 count=1 if=/dev/urandom 2>/dev/null | xxd -p)"
 
 usage() {

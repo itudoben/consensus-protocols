@@ -33,7 +33,7 @@ curl 172.17.0.2:8000/status
 echo i | nc -bu -w 1 172.17.255.255 8872 // to print the IP on the server logs
 echo q | nc -bu -w 1 172.17.255.255 8872 // to quit the app
 
-# Status on Fri, July 21, 2023
+# Status on Fri, August 4, 2023
 
 using document raft-consensus-protocol-thesis.pdf stored on PC
 
@@ -41,6 +41,10 @@ From a third container to talk to 2 others node by broadcasting a command
 or
 Next:
 
+- CODE DOES NOT COMPILE ANYMORE UNTIL THIS BELOW IS FIXED
+- Get the Broadcast IP directly using netaddr.BroadcastAddr(net.Addr.Network()
+  - https://pkg.go.dev/gopkg.in/netaddr.v1#BroadcastAddr
+  - https://pkg.go.dev/net#IPAddr
 - Communicate securely by providing a public key
 - Check ES how it's done.
 - 
