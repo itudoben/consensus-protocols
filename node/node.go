@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	netaddr "gopkg.in/netaddr.v1"
+	// 	netaddr "gopkg.in/netaddr.v1"
 	"io"
 	"itudoben.io/state"
 	"log"
@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	netstate "v.io/x/lib/netstate"
 )
 
 // Structure to implement interface http.ResponseWriter
@@ -24,43 +25,48 @@ func (d Dummy) Header() http.Header          { return nil }
 func (d Dummy) Write(bb []byte) (int, error) { return d.w.Write(bb) }
 func (d Dummy) WriteHeader(statusCode int)   {}
 
-var p = 8000
-var pUdp = 8972
+type Node struct {
+	portHttp int
+	portUDP  int
+	ip       *net.IP
+}
+
+func NewNode(portHttp int, portUDP int, ip *net.IP) *Node {
+	return &Node{portHttp: portHttp, portUDP: portUDP, ip: ip}
+}
 
 var stat = new(state.State)
 
-func httpServer() error {
+func httpServer(node *Node) error {
 	setState(stat, os.Stdout)
 
-	http.HandleFunc("/", defaultHandler) // each request calls handler
-	http.HandleFunc("/status", status)   // each request calls handler
+	http.HandleFunc("/", defaultHandler)              // each request calls handler
+	http.Handle("/status", &countHandler{node: node}) // each request calls handler
 
-	thisIp, err := GetLocalIP(os.Stdout)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("%s waiting for HTTP commands on port %d...\n", thisIp.String(), p)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", p), nil))
+	fmt.Printf("%s waiting for HTTP commands on port %d...\n", node.ip.String(), node.portHttp)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", node.portHttp), nil))
 	return nil
 }
 
-func listerBroadcast() error {
-	thisIp, err := GetLocalIP(os.Stdout)
-	if err != nil {
-		return err
-	}
-
-	pc, err := net.ListenPacket("udp4", fmt.Sprintf(":%d", pUdp))
+func listerBroadcast(node *Node) error {
+	pc, err := net.ListenPacket("udp4", fmt.Sprintf(":%d", node.portUDP))
 	defer pc.Close()
 	if err != nil {
 		return err
 	}
 
 	buf := make([]byte, 1024)
+	ifcs, _ := netstate.GetAllInterfaces()
+	for i := 0; i < len(ifcs); i++ {
+		addrs := ifcs[i].Addrs()
+		for j := 0; j < len(addrs); j++ {
+			fmt.Printf("%d %d net %s, str %s \n", i, j, addrs[j].Network(), addrs[j].String())
+		}
+	}
+
 loop:
 	for {
-		fmt.Printf("%s waiting for broadcast (ip = %s) commands on port %d...\n", netaddr.BroadcastAddr(net.Addr.Network()).String(), thisIp.String(), pUdp)
+		fmt.Printf("%s waiting for broadcast (ip = %s) commands on port %d...\n", "netaddr.BroadcastAddr(net.Addr.Network()).String()", node.ip.String(), node.portUDP)
 		n, addr, err := pc.ReadFrom(buf)
 		if err != nil {
 			return err
@@ -77,16 +83,16 @@ loop:
 
 		switch c {
 		case "q":
-			fmt.Printf("%s shutdown\n", thisIp)
+			fmt.Printf("%s shutdown\n", node.ip.String())
 			break loop
 		case "i":
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("%s received %q sent by %s\n", thisIp, c, addr.String())
+			fmt.Printf("[BROADCAST] %s received %q sent by %s\n", node.ip.String(), c, addr.String())
 		default:
-			fmt.Printf("%s received unknown command %q sent by %s\n", thisIp, c, addr.String())
+			fmt.Printf("[BROADCAST] %s received unknown command %q sent by %s\n", node.ip.String(), c, addr.String())
 		}
 	}
 	return nil
@@ -94,12 +100,16 @@ loop:
 
 // handler echoes the Path component of the request URL r.
 func defaultHandler(w http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(w, "[DEFAULT] URL Path: %s\n", req.URL.Path)
+	fmt.Fprintf(w, "[HTTP] URL Path: %s\n", req.URL.Path)
 }
 
-func status(w http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(os.Stdout, "[STATUS] Node with IP %+v:%d\n", stat, p)
-	fmt.Fprintf(w, "[STATUS] Node with IP %+v:%d\n", stat, p)
+type countHandler struct {
+	node *Node
+}
+
+func (h *countHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	fmt.Fprintf(os.Stdout, "[STATUS] Node with IP %+v:%d\n", stat, h.node.portHttp)
+	fmt.Fprintf(w, "[STATUS] Node with IP %+v:%d\n", stat, h.node.portHttp)
 }
 
 func GetLocalIP(w io.Writer) (ip *net.IP, err error) {
@@ -123,7 +133,7 @@ func setState(stat *state.State, w io.Writer) error {
 	}
 
 	stat.Ip = *ip
-	stat.Role = "subsidiary"
+	stat.Role = "follower" // leader as in Raft consensus algorithm leader election
 	return nil
 }
 
@@ -147,11 +157,17 @@ func main() {
 	//
 	//     	fmt.Println("Broadcast message sent successfully.")
 
+	thisIp, err := GetLocalIP(os.Stdout)
+	if err != nil {
+		panic(err)
+	}
+
+	thisNode := NewNode(8000, 8972, thisIp)
 	wg := &sync.WaitGroup{}
 
 	wg.Add(1)
 	go func() {
-		err := httpServer()
+		err := httpServer(thisNode)
 		defer wg.Done()
 		if err != nil {
 			panic(err)
@@ -160,7 +176,7 @@ func main() {
 
 	wg.Add(1)
 	go func() {
-		err := listerBroadcast()
+		err := listerBroadcast(thisNode)
 		defer wg.Done()
 		if err != nil {
 			panic(err)
