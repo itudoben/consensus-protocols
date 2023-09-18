@@ -30,8 +30,8 @@ curl 172.17.0.2:8000/status
 
 ## Broadcast with udp
 
-echo i | nc -bu -w 1 172.17.255.255 8872 // to print the IP on the server logs
-echo q | nc -bu -w 1 172.17.255.255 8872 // to quit the app
+echo i | nc -bu -w 1 172.17.255.255 8972 // to print the IP on the server logs
+echo q | nc -bu -w 1 172.17.255.255 8972 // to quit the app
 
 # Status on Fri, Sep 1, 2023
 

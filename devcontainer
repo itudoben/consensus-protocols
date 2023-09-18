@@ -77,6 +77,7 @@ devsnapshot() {
     echo "Run the snapshot dev container with the source code to test it."
     docker run --rm -it \
 		--name ${container_name} \
+		--hostname ${container_name} \
 		--volume $(pwd):/usr/share/local/projects \
 		--workdir /usr/share/local/projects \
 		"${container_name}:snapshot"
@@ -86,6 +87,7 @@ dev() {
     echo "Run the Go container with the source code to test it in container ${container_name}."
     docker run --rm -it \
 		--name ${container_name} \
+		--hostname ${container_name} \
 		--volume $(pwd):/usr/share/local/projects \
 		--workdir /usr/share/local/projects \
 		${image_repo_tag_dev}
@@ -95,6 +97,7 @@ run() {
     echo "Run the Go code using the executable docker image."
     docker run --rm \
 		--name go_hello_run \
+		--hostname go_hello_run \
 		--volume $(pwd):/usr/share/local/projects \
 		--workdir /usr/share/local/projects \
 		${image_repo_tag}

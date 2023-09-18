@@ -9,6 +9,6 @@ func init() {
 
 type State struct {
 	Ip          net.IP
-	Role        string  "follower"// follower, candidate, leader
+	Role        string "follower" // follower, candidate, leader
 	CurrentTerm int
 }

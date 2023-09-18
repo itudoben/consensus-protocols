@@ -6,10 +6,13 @@ import (
 	"io"
 	"itudoben.io/state"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"sync"
+	"time"
 	netstate "v.io/x/lib/netstate"
 )
 
@@ -43,10 +46,20 @@ func httpServer(node *Node) error {
 	http.HandleFunc("/", defaultHandler)              // each request calls handler
 	http.Handle("/status", &countHandler{node: node}) // each request calls handler
 
-	fmt.Printf("%s waiting for HTTP commands on port %d...\n", node.ip.String(), node.portHttp)
+	// Get the local machine's hostname
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Println("Error:", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%s (%s) waiting for HTTP commands on port %d...\n", hostname, node.ip.String(), node.portHttp)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", node.portHttp), nil))
 	return nil
 }
+
+// The broadcast allows to give commands to the server config via the channel
+var sem = make(chan string, 0)
 
 func listerBroadcast(node *Node) error {
 	pc, err := net.ListenPacket("udp4", fmt.Sprintf(":%d", node.portUDP))
@@ -66,7 +79,15 @@ func listerBroadcast(node *Node) error {
 
 loop:
 	for {
-		fmt.Printf("%s waiting for broadcast (ip = %s) commands on port %d...\n", "netaddr.BroadcastAddr(net.Addr.Network()).String()", node.ip.String(), node.portUDP)
+		// Get the local machine's hostname
+		hostname, err := os.Hostname()
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("%s (%s) waiting for broadcast from ''%s' commands on port %d...\n", hostname, node.ip.String(),
+			"netaddr.BroadcastAddr(net.Addr.Network()).String()", node.portUDP)
 		n, addr, err := pc.ReadFrom(buf)
 		if err != nil {
 			return err
@@ -90,9 +111,9 @@ loop:
 				return err
 			}
 
-			fmt.Printf("[BROADCAST] %s received %q sent by %s\n", node.ip.String(), c, addr.String())
+			fmt.Printf("[BROADCAST] %s (%s) received %q sent by %s\n", hostname, node.ip.String(), c, addr.String())
 		default:
-			fmt.Printf("[BROADCAST] %s received unknown command %q sent by %s\n", node.ip.String(), c, addr.String())
+			fmt.Printf("[BROADCAST] %s (%s) received unknown command %q sent by %s\n", hostname, node.ip.String(), c, addr.String())
 		}
 	}
 	return nil
@@ -137,6 +158,31 @@ func setState(stat *state.State, w io.Writer) error {
 	return nil
 }
 
+// 150 to 300 ms randomized timeout
+var electionTimeout = randomValue(150, 300)
+
+func heartBeat() {
+	for i := 0; i < 10; i++ {
+		fmt.Printf("Hearbeat in %s ...\n", electionTimeout)
+		time.Sleep(electionTimeout)
+		callFunction()
+	}
+
+	// return &error.Error("Fail to get the heartBeat")
+}
+
+func randomValue(min int, max int) time.Duration {
+	// Seed the random number generator
+	rand.Seed(time.Now().UnixNano())
+
+	// Generate a random integer between 150 and 300
+	return time.Duration(rand.Intn(min)+max-min) * time.Millisecond // Generates a value between 0 and 150, then adds 150
+}
+
+func callFunction() {
+	fmt.Println("Function called now")
+}
+
 func main() {
 	// First send a request to join a cluster ID
 	//     broadcastAddress, err := netaddr.Broadcast.String()
@@ -165,6 +211,8 @@ func main() {
 	thisNode := NewNode(8000, 8972, thisIp)
 	wg := &sync.WaitGroup{}
 
+	go func() { log.Println(http.ListenAndServe("localhost:6060", nil)) }()
+
 	wg.Add(1)
 	go func() {
 		err := httpServer(thisNode)
@@ -181,6 +229,11 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		heartBeat()
 	}()
 
 	wg.Wait()
