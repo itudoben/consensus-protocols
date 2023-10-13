@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
-	// 	netaddr "gopkg.in/netaddr.v1"
 	"io"
 	"itudoben.io/state"
 	"log"
@@ -159,7 +159,7 @@ func setState(stat *state.State, w io.Writer) error {
 }
 
 // 150 to 300 ms randomized timeout
-var electionTimeout = randomValue(150, 300)
+var electionTimeout = randomValue(150*10, 300*10)
 
 func heartBeat() {
 	for i := 0; i < 10; i++ {
@@ -183,32 +183,151 @@ func callFunction() {
 	fmt.Println("Function called now")
 }
 
+func findBroadcastAddress() (broadcastAddress string) {
+	// Get the default network interface
+	// 	iface, err := net.InterfaceByName("default")
+	// 	if err != nil {
+	// 		fmt.Println("Error getting default network interface:", err)
+	// 		return
+	// 	}
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		fmt.Println("Error getting network interfaces:", err)
+		return
+	}
+
+	var logBuffer bytes.Buffer
+	for _, iface := range ifaces {
+
+		message := `
+Name: %s
+MTU: %d
+Hardware Address (MAC): %s
+Flags: %s
+-----------------------------------------------------
+`
+
+		debugMessage := fmt.Sprintf(message, iface.Name, iface.MTU, iface.HardwareAddr.String(), string(iface.Flags))
+		logBuffer.WriteString(debugMessage)
+
+		// Get the interface's addresses
+		addrs, err := iface.Addrs()
+		if err != nil {
+			logBuffer.WriteString("Error getting interface addresses:" + err.Error())
+			return
+		}
+
+		// Find the broadcast address
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
+			}
+
+			if ipNet.IP.To4() != nil {
+				// This is an IPv4 address
+				broadcastIP := net.IPv4(255, 255, 255, 255)
+				broadcastAddress = net.IP(ipNet.IP.Mask(ipNet.Mask)).To4().String()
+				broadcastAddress = broadcastIP.String()
+				break
+			}
+		}
+	}
+
+	if broadcastAddress == "" {
+		logBuffer.WriteString("No broadcast address found.")
+		return
+	}
+
+	// Use the broadcastAddress in your UDP broadcast code
+	logBuffer.WriteString("Broadcast Address:" + broadcastAddress)
+	log.Print(logBuffer.String())
+	return broadcastAddress
+}
+
+func broadcastMessage(broadcastAddress string, portUDP int, message []byte) {
+	// Create a UDP address structure
+	udpAddr, err := net.ResolveUDPAddr("udp4", broadcastAddress+":"+fmt.Sprint(portUDP))
+	if err != nil {
+		fmt.Println("Error resolving UDP address:", err)
+		return
+	}
+
+	// Create a UDP connection
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+	if err != nil {
+		fmt.Println("Error creating UDP connection:", err)
+		return
+	}
+	defer conn.Close()
+
+	// Send the message
+	_, err = conn.Write(message)
+	if err != nil {
+		fmt.Println("Error sending message:", err)
+		return
+	}
+
+	fmt.Println("Message broadcasted successfully!")
+}
+
 func main() {
-	// First send a request to join a cluster ID
-	//     broadcastAddress, err := netaddr.Broadcast.String()
+	type Config struct {
+		node string // follower, candidate and leader
+	}
+
+	config := new(Config)
+	config.node = "follower"
+
+	var portUDP int = 8972
+
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "leader":
+			fmt.Println("Display help information.")
+			config.node = "leader"
+		default:
+			fmt.Printf("Unknown command: %s\n", arg)
+		}
+	}
+
+	if config.node == "leader" {
+		fmt.Printf("Node role: %s\n", config.node)
+		broadcastAddress := findBroadcastAddress()
+
+		// Message to broadcast
+		message := []byte("Hello I am node " + config.node)
+
+		broadcastMessage(broadcastAddress, portUDP, message)
+		return
+	}
+
+	// 	// First send a request to join a cluster ID
+	// 	broadcastAddress, err := netaddr.Broadcast.String()
+
+	// 	conn, err := net.Dial("udp", broadcastAddress)
+	// 	if err != nil {
+	// 		fmt.Println("Error creating UDP connection:", err)
+	// 		return
+	// 	}
+	// 	defer conn.Close()
 	//
-	//     	conn, err := net.Dial("udp", broadcastAddress)
-	//     	if err != nil {
-	//     		fmt.Println("Error creating UDP connection:", err)
-	//     		return
-	//     	}
-	//     	defer conn.Close()
+	// 	message := []byte("This is a broadcast message!")
+	// 	_, err = conn.Write(message)
+	// 	if err != nil {
+	// 		fmt.Println("Error sending UDP broadcast:", err)
+	// 		return
+	// 	}
 	//
-	//     	message := []byte("This is a broadcast message!")
-	//     	_, err = conn.Write(message)
-	//     	if err != nil {
-	//     		fmt.Println("Error sending UDP broadcast:", err)
-	//     		return
-	//     	}
-	//
-	//     	fmt.Println("Broadcast message sent successfully.")
+	// 	fmt.Println("Broadcast message sent successfully.")
 
 	thisIp, err := GetLocalIP(os.Stdout)
 	if err != nil {
 		panic(err)
 	}
 
-	thisNode := NewNode(8000, 8972, thisIp)
+	thisNode := NewNode(8000, portUDP, thisIp)
 	wg := &sync.WaitGroup{}
 
 	go func() { log.Println(http.ListenAndServe("localhost:6060", nil)) }()

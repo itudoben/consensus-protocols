@@ -48,4 +48,3 @@ Next:
   - https://pkg.go.dev/net#IPAddr
 - Communicate securely by providing a public key
 - Check ES how it's done.
-- 
