@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"itudoben.io/state"
-	"log"
+	"log/slog"
 	"math/rand"
 	"net"
 	"net/http"
@@ -40,6 +40,8 @@ func NewNode(portHttp int, portUDP int, ip *net.IP) *Node {
 
 var stat = new(state.State)
 
+var logger = slog.Default()
+
 func httpServer(node *Node) error {
 	setState(stat, os.Stdout)
 
@@ -49,12 +51,12 @@ func httpServer(node *Node) error {
 	// Get the local machine's hostname
 	hostname, err := os.Hostname()
 	if err != nil {
-		fmt.Println("Error:", err)
+		logger.Error(err.Error())
 		os.Exit(1)
 	}
 
-	fmt.Printf("%s (%s) waiting for HTTP commands on port %d...\n", hostname, node.ip.String(), node.portHttp)
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", node.portHttp), nil))
+	logger.Info(fmt.Sprintf("%s (%s) waiting for HTTP commands on port %d...\n", hostname, node.ip.String(), node.portHttp))
+	logger.Error(http.ListenAndServe(fmt.Sprintf(":%d", node.portHttp), nil).Error())
 	return nil
 }
 
@@ -73,7 +75,7 @@ func listerBroadcast(node *Node) error {
 	for i := 0; i < len(ifcs); i++ {
 		addrs := ifcs[i].Addrs()
 		for j := 0; j < len(addrs); j++ {
-			fmt.Printf("%d %d net %s, str %s \n", i, j, addrs[j].Network(), addrs[j].String())
+			logger.Info(fmt.Sprintf("%d %d net %s, str %s \n", i, j, addrs[j].Network(), addrs[j].String()))
 		}
 	}
 
@@ -82,12 +84,12 @@ loop:
 		// Get the local machine's hostname
 		hostname, err := os.Hostname()
 		if err != nil {
-			fmt.Println("Error:", err)
+			logger.Error(err.Error())
 			os.Exit(1)
 		}
 
-		fmt.Printf("%s (%s) waiting for broadcast from ''%s' commands on port %d...\n", hostname, node.ip.String(),
-			"netaddr.BroadcastAddr(net.Addr.Network()).String()", node.portUDP)
+		logger.Debug(fmt.Sprintf("%s (%s) waiting for broadcast from ''%s' commands on port %d...\n", hostname, node.ip.String(),
+			"netaddr.BroadcastAddr(net.Addr.Network()).String()", node.portUDP))
 		n, addr, err := pc.ReadFrom(buf)
 		if err != nil {
 			return err
@@ -104,16 +106,16 @@ loop:
 
 		switch c {
 		case "q":
-			fmt.Printf("%s shutdown\n", node.ip.String())
+			logger.Info("%s shutdown\n", node.ip.String())
 			break loop
 		case "i":
 			if err != nil {
 				return err
 			}
 
-			fmt.Printf("[BROADCAST] %s (%s) received %q sent by %s\n", hostname, node.ip.String(), c, addr.String())
+			logger.Info(fmt.Sprintf("[BROADCAST] %s (%s) received %q sent by %s\n", hostname, node.ip.String(), c, addr.String()))
 		default:
-			fmt.Printf("[BROADCAST] %s (%s) received unknown command %q sent by %s\n", hostname, node.ip.String(), c, addr.String())
+			logger.Info(fmt.Sprintf("[BROADCAST] %s (%s) received unknown command %q sent by %s\n", hostname, node.ip.String(), c, addr.String()))
 		}
 	}
 	return nil
@@ -129,7 +131,7 @@ type countHandler struct {
 }
 
 func (h *countHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(os.Stdout, "[STATUS] Node with IP %+v:%d\n", stat, h.node.portHttp)
+	logger.Debug(fmt.Sprintf("[STATUS] Node with IP %+v:%d\n", stat, h.node.portHttp))
 	fmt.Fprintf(w, "[STATUS] Node with IP %+v:%d\n", stat, h.node.portHttp)
 }
 
@@ -139,7 +141,7 @@ func GetLocalIP(w io.Writer) (ip *net.IP, err error) {
 	defer conn.Close()
 
 	if err != nil {
-		log.Fatal(err)
+		logger.Error(err.Error())
 		return nil, err
 	}
 
@@ -163,7 +165,7 @@ var electionTimeout = randomValue(150*10, 300*10)
 
 func heartBeat() {
 	for i := 0; i < 10; i++ {
-		fmt.Printf("Hearbeat in %s ...\n", electionTimeout)
+		logger.Info(fmt.Sprintf("Hearbeat in %s ...\n", electionTimeout))
 		time.Sleep(electionTimeout)
 		callFunction()
 	}
@@ -180,7 +182,7 @@ func randomValue(min int, max int) time.Duration {
 }
 
 func callFunction() {
-	fmt.Println("Function called now")
+	logger.Info(fmt.Sprint("Function called now"))
 }
 
 func findBroadcastAddress() (broadcastAddress string) {
@@ -193,13 +195,12 @@ func findBroadcastAddress() (broadcastAddress string) {
 
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		fmt.Println("Error getting network interfaces:", err)
+		logger.Error(fmt.Sprintf("Error getting network interfaces: %s", err))
 		return
 	}
 
 	var logBuffer bytes.Buffer
 	for _, iface := range ifaces {
-
 		message := `
 Name: %s
 MTU: %d
@@ -242,7 +243,7 @@ Flags: %s
 
 	// Use the broadcastAddress in your UDP broadcast code
 	logBuffer.WriteString("Broadcast Address:" + broadcastAddress)
-	log.Print(logBuffer.String())
+	logger.Info(logBuffer.String())
 	return broadcastAddress
 }
 
@@ -250,14 +251,14 @@ func broadcastMessage(broadcastAddress string, portUDP int, message []byte) {
 	// Create a UDP address structure
 	udpAddr, err := net.ResolveUDPAddr("udp4", broadcastAddress+":"+fmt.Sprint(portUDP))
 	if err != nil {
-		fmt.Println("Error resolving UDP address:", err)
+		logger.Error("Error resolving UDP address:", err)
 		return
 	}
 
 	// Create a UDP connection
 	conn, err := net.DialUDP("udp", nil, udpAddr)
 	if err != nil {
-		fmt.Println("Error creating UDP connection:", err)
+		logger.Error("Error creating UDP connection:", err)
 		return
 	}
 	defer conn.Close()
@@ -265,11 +266,11 @@ func broadcastMessage(broadcastAddress string, portUDP int, message []byte) {
 	// Send the message
 	_, err = conn.Write(message)
 	if err != nil {
-		fmt.Println("Error sending message:", err)
+		logger.Error("Error sending message:", err)
 		return
 	}
 
-	fmt.Println("Message broadcasted successfully!")
+	logger.Info("Message broadcasted successfully!")
 }
 
 func main() {
@@ -285,15 +286,15 @@ func main() {
 	for _, arg := range os.Args[1:] {
 		switch arg {
 		case "leader":
-			fmt.Println("Display help information.")
+			logger.Info("Display help information.")
 			config.node = "leader"
 		default:
-			fmt.Printf("Unknown command: %s\n", arg)
+			logger.Warn("Unknown command: %s\n", arg)
 		}
 	}
 
 	if config.node == "leader" {
-		fmt.Printf("Node role: %s\n", config.node)
+		logger.Debug("Node role: %s\n", config.node)
 		broadcastAddress := findBroadcastAddress()
 
 		// Message to broadcast
@@ -330,7 +331,7 @@ func main() {
 	thisNode := NewNode(8000, portUDP, thisIp)
 	wg := &sync.WaitGroup{}
 
-	go func() { log.Println(http.ListenAndServe("localhost:6060", nil)) }()
+	go func() { logger.Info(http.ListenAndServe("localhost:6060", nil).Error()) }()
 
 	wg.Add(1)
 	go func() {

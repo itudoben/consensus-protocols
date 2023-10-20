@@ -1,5 +1,6 @@
-# 1.20.6-alpine3.18 https://hub.docker.com/layers/library/golang/alpine3.18/images/sha256-8bdf832c26fff72bca1fa6683b1f01dd6462b2bd665aab683f9bd14bc2098b38?context=explore
-FROM golang:alpine3.18@sha256:8bdf832c26fff72bca1fa6683b1f01dd6462b2bd665aab683f9bd14bc2098b38
+# 1.21.3-alpine3.18 https://hub.docker.com/layers/library/golang/1.21.3-alpine3.18/images/sha256-533470173383661c84e0b4d9b1f806b7caeae4b3cee918cdf49fb558eee195c4?context=explore
+FROM --platform=$BUILDPLATFORM golang:1.21.3-alpine3.18@sha256:533470173383661c84e0b4d9b1f806b7caeae4b3cee918cdf49fb558eee195c4
+# FROM golang:alpine3.18@sha256:8bdf832c26fff72bca1fa6683b1f01dd6462b2bd665aab683f9bd14bc2098b38
 
 RUN apk update && \
     apk upgrade && \
